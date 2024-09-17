@@ -3,6 +3,9 @@
 source _common.sh
 source /usr/share/yunohost/helpers
 
+maindomain=$(yunohost domain main-domain | awk '{print $2}')
+domains=$(yunohost domain list --exclude-subdomains | grep -Ev '^(domains|main):' | awk '{print $2}')
+
 #=================================================
 # CHECKING DEPENDANCIES
 #=================================================
@@ -11,112 +14,71 @@ source /usr/share/yunohost/helpers
 if ! yunohost app list | grep -q "id: coturn"; then
         echo "Coturn is not installed. Installing... "
         yunohost tools update
-        yunohost app install https://github.com/anubister/coturn_ynh --force --args "domain=$domain"
+        yunohost app install https://github.com/anubister/coturn_ynh --force --args "maindomain=$maindomain"
 fi
+
+turn_password=$(ynh_app_setting_get --app="coturn" --key=turnserver_pwd)
+turn_external_port=$(ynh_app_setting_get --app="coturn" --key=port_turnserver)
 
 #=================================================
 # DISABLE METRONOME
 #=================================================
-# it should not be present anymore in YNH12
-# but probably kept for people migrating from YNH11
-ynh_script_progression "Disabling Metronome..."
 
-if systemctl list-unit-files metronome.service &>/dev/null
-then
-	ynh_systemctl --service="metronome" --action="stop"
-	systemctl disable metronome.service --quiet
+if systemctl list-unit-files metronome.service &>/dev/null; then
+	ynh_script_progression "Metronome is still present. Uninstalling Metronome..."
+	DEBIAN_FRONTEND=noninteractive apt-get --assume-yes remove metronome
 fi
 
 #=================================================
 # DOWNLOAD, CHECK AND UNPACK SOURCE
 #=================================================
-ynh_script_progression "Setting up source files..."
 
-builddir="$(mktemp -d)"
-# Download, check integrity, uncompress and patch the source from app.src
-ynh_setup_source --dest_dir="$builddir"
+ynh_script_progression "Installing prosody package from Debian..."
+
+DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes prosody prosody-modules
 
 #=================================================
 # SPECIFIC SETUP
 #=================================================
-# BUILD PROSODY
-#=================================================
-ynh_script_progression "Building Prosody..."
-
-update-alternatives --set lua-interpreter /usr/bin/lua${luaversion}
-
-pushd "$builddir"
-	./configure --prefix=/usr
-	make
-	make install
-popd
-
-ynh_safe_rm "$builddir"
-
-#=================================================
-# ADD A CONFIGURATION
-#=================================================
-ynh_script_progression "Adding $app's configuration..."
-
-config_path=/etc/$app
-ynh_app_setting_set --key=config_path --value=$config_path
-mkdir -p $config_path
-mkdir -p $config_path/{certs,conf.avail,conf.d}
-
-ynh_config_add --template="prosody.cfg.lua" --destination="$config_path/prosody.cfg.lua"
-# Add domain configuration
-ynh_config_add --template="domain.tpl.cfg.lua" --destination="/etc/prosody/conf.d/$domain.cfg.lua"
-
-# Add nginx config for xmpp subdomains
-ynh_config_add --template="../conf/nginx-extra-xmpp.conf" --destination="/etc/nginx/conf.d/$domain-extra-xmpp.conf"
-
-# update password and port from coturn app
-turnpassword=$(ynh_app_setting_get --app="coturn" --key=turnserver_pwd)
-turnport=$(ynh_app_setting_get --app="coturn" --key=port_turnserver)
-ynh_replace --match="Some passphrase" --replace="$turnpassword" --file="$config_path/prosody.cfg.lua"
-ynh_replace --match="turn_external_port = 3478" --replace="turn_external_port = $turnport" --file="$config_path/prosody.cfg.lua"
-
-chown root:root "$config_path"
-chmod 755 "$config_path"
-
-chown root:$app "$config_path/conf.d"
-chmod 754 "$config_path/conf.d"
-
-chown root:$app "$config_path/conf.avail"
-chmod 754 "$config_path/conf.avail"
-
-chown root:$app "$config_path/certs"
-chmod 750 "$config_path/certs"
-
-# create directory for file sharing uploads
-mkdir -p "/var/xmpp-upload/$domain/upload"
-chown -R "$app:www-data" "/var/xmpp-upload/"
-chmod -R g+s "/var/xmpp-upload/"
-
-#=================================================
-# SETUP SYSTEMD
-#=================================================
-ynh_script_progression "Configuring $app's systemd service..."
-
-# Create a dedicated systemd config
-ynh_config_add_systemd
 
 # Add permision to read certs
 usermod -a -G ssl-cert prosody
 
 #=================================================
-# SETUP LOGROTATE
+# ADD A CONFIGURATION
 #=================================================
-ynh_script_progression "Configuring log rotation..."
 
-mkdir -p "/var/log/$app"
-#REMOVEME? Assuming ynh_config_add_logrotate is called, the proper chmod/chowns are now already applied and it shouldn't be necessary to tweak perms | chmod 750 "/var/log/$app"
-#REMOVEME? Assuming ynh_config_add_logrotate is called, the proper chmod/chowns are now already applied and it shouldn't be necessary to tweak perms | chmod -R o-rwx "/var/log/$app"
-#REMOVEME? Assuming ynh_config_add_logrotate is called, the proper chmod/chowns are now already applied and it shouldn't be necessary to tweak perms | chown -R $app:adm "/var/log/$app"
-chown -R $app:$app "/var/lib/$app"
+ynh_script_progression "Adding a configuration file..."
 
-# Use logrotate to manage application logfile(s)
-ynh_config_add_logrotate
+for domain in ${domains} ; do
+	# Add domain configuration
+	ynh_config_add --template="domain.tpl.cfg.lua" --destination="/etc/prosody/conf.avail/${domain}.cfg.lua"
+	ln -sr /etc/prosody/conf.avail/${domain}.cfg.lua /etc/prosody/conf.d/
+
+	# Add nginx config for xmpp subdomains
+	ynh_config_add --template="../conf/nginx-extra-xmpp.conf" --destination="/etc/nginx/conf.d/${domain}-extra-xmpp.conf"
+
+	# create directory for file sharing uploads
+	mkdir -p "/var/xmpp-upload/${domain}/upload"
+	chown -R prosody:www-data /var/xmpp-upload/
+	chmod -R g+s /var/xmpp-upload/
+done
+
+#=================================================
+# SETUP SYSTEMD
+#=================================================
+
+#=================================================
+# MIGRATE DATA FROM METRONOME AND PURGE
+#=================================================
+
+if [ -d /var/lib/metronome/ ]; then
+	ynh_script_progression "Migrating data from metronome..."
+	mv /var/lib/metronome/* /var/lib/prosody/
+	rmdir /var/lib/metronome
+	chown -R prosody: /var/lib/prosody/
+	DEBIAN_FRONTEND=noninteractive apt-get --assume-yes --purge purge metronome
+fi
 
 #=================================================
 # INTEGRATE SERVICE IN YUNOHOST
@@ -128,21 +90,11 @@ yunohost service add $app --log="/var/log/$app/$app.log"
 #=================================================
 # START SYSTEMD SERVICE
 #=================================================
-ynh_script_progression "Starting $app's systemd service..."
 
-# Start a systemd service
-ynh_systemctl --service=$app --action="start"
+ynh_script_progression "Restarting the systemd service..."
 
-# add http_upload, muc_log modules not included by default with Prosody
-/usr/bin/prosodyctl install --server=https://modules.prosody.im/rocks/ mod_http_upload
-/usr/bin/prosodyctl install --server=https://modules.prosody.im/rocks/ mod_muc_log
-/usr/bin/prosodyctl install --server=https://modules.prosody.im/rocks/ mod_vcard_muc
-
-# restart to take into account new modules
+# Restart the systemd service
 ynh_systemctl --service=$app --action="restart"
-
-# reload nginx
-ynh_systemctl --service="nginx" --action="reload"
 
 #=================================================
 # END OF SCRIPT

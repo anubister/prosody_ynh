@@ -22,8 +22,10 @@ This app is in Beta maturity (reported to work by several people, though few man
   * MUC
   * automatically install coturn if not yet present (https://github.com/anubister/coturn_ynh/ , a fork compatible with Yunohost 12)
   * XEP-0163, XEP-0191, XEP-0215, XEP-0237, XEP-0280, XEP-0313, XEP-0363 (see 'xmpp_compliance' file)
+    
 🐞 What does not work:
   * vjud (Users directory) (help welcomed!)
+    
 🙋 TODO (help welcomed!):
   * do migration from Metronome datas on Yunohost 11 to Prosody
   * if applicable manage migration from upstream version of coturn app
@@ -41,6 +43,7 @@ This app is in Beta maturity (reported to work by several people, though few man
 
 # READ before install!
 Ideally all the README :) but this in particular:
+* Ensure you are already running Yunohost 12 (or higher, but not 11), and metronome app is not installed (TBC with data migration logic)
 * You must create in Yunohost the subdomains `muc.` and `xmpp-upload.`
 * You must apply the workaround for this bug : https://github.com/anubister/prosody_ynh/issues/4#issuecomment-2318658501
 

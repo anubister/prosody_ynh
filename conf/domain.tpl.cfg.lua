@@ -44,6 +44,7 @@ Component "muc.__DOMAIN__" "muc"
     --"muc_log_mam";
     --"muc_log_http";
     --"muc_vcard";
+    "vcard_muc";
     "muc_mam";
   }
 
@@ -63,7 +64,7 @@ Component "pubsub.__DOMAIN__" "pubsub"
   unrestricted_node_creation = true -- Anyone can create a PubSub node (from any server)
 
 ---Set up a HTTP Upload service
-Component "xmpp-upload.__DOMAIN__" "http_upload"
+Component "xmpp-upload.__DOMAIN__" "http_file_share"
   name = "__DOMAIN__ Sharing Service"
   http_upload_path = "/var/xmpp-upload/__DOMAIN__/upload/"
   http_external_url = "https://xmpp-upload.__DOMAIN__"

@@ -18,7 +18,7 @@ This app is in Beta maturity (reported to work by several people, though few man
   * install on brand new Yunohost 12
   * LDAP auth
   * A/V calls
-  * File upload
+  * File upload (broken as of 11/2024)
   * MUC
   * automatically install coturn if not yet present (https://github.com/anubister/coturn_ynh/ , a fork compatible with Yunohost 12)
   * XEP-0163, XEP-0191, XEP-0215, XEP-0237, XEP-0280, XEP-0313, XEP-0363 (see 'xmpp_compliance' file)
@@ -50,6 +50,10 @@ Ideally all the README :) but this in particular:
 
 💬 Further discussions, support on xmpp:yunohost-xmpp@muc.chapril.org?join
 Or in the [forum](https://forum.yunohost.org/c/apps/11).
+
+ℹ️ About this branch 
+  * This branch build from source prosody (compilation on server-side) and retrieve 2 modules from prosody servers. It installs on your desired (sub)domain selected during the installation.
+  * This branch is **depreciated/not maintained**, use at your own risk or contribute to it!
 
 # Prosody for YunoHost
 

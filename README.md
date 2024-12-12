@@ -4,7 +4,7 @@ It shall NOT be edited by hand.
 -->
 ⚠️ This is a fork (work in progress) of the official Prosody app to install on Yunohost 12 and aiming at providing the best XMPP support possible!
 
-This app is in Beta maturity (reported to work by several people, though few manual operations are needed and some functionalities are still missing).
+⚠️⚠️ This branch/repository is not maintained anymore, please use https://github.com/YunoHost-Apps/prosody_ynh/tree/testing and soon https://github.com/YunoHost-Apps/prosody_ynh/ !
 
 🚀 Target is to provide at least:
   * A/V calls (https://github.com/YunoHost/issues/issues/1607) 
